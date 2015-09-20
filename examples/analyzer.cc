@@ -59,7 +59,7 @@ private:
 
   ogg_page page;
   ogg_sync_state oy;
-  ogg_stream_state os;
+  ogg_stream_state *os;
 
   daala_info di;
   daala_comment dc;
@@ -113,11 +113,11 @@ bool DaalaDecoder::readPage() {
 }
 
 bool DaalaDecoder::readPacket(ogg_packet *packet) {
-  while (ogg_stream_packetout(&os, packet) != 1) {
+  while (ogg_stream_packetout(os, packet) != 1) {
     if (!readPage()) {
       return false;
     }
-    if (ogg_stream_pagein(&os, &page) != 0) {
+    if (ogg_stream_pagein(os, &page) != 0) {
       return false;
     }
   }
@@ -129,11 +129,12 @@ bool DaalaDecoder::readHeaders() {
   while (!done && readPage()) {
     int serial = ogg_page_serialno(&page);
     if (ogg_page_bos(&page)) {
-      if (ogg_stream_init(&os, serial) != 0) {
+      os = new ogg_stream_state;
+      if (ogg_stream_init(os, serial) != 0) {
         return false;
       }
     }
-    if (ogg_stream_pagein(&os, &page) != 0) {
+    if (ogg_stream_pagein(os, &page) != 0) {
       return false;
     }
     ogg_packet packet;
@@ -157,7 +158,7 @@ bool DaalaDecoder::readHeaders() {
   return done;
 }
 
-DaalaDecoder::DaalaDecoder() : input(NULL), dsi(NULL), dctx(NULL) {
+DaalaDecoder::DaalaDecoder() : input(NULL), os(NULL), dsi(NULL), dctx(NULL) {
   daala_info_init(&di);
   daala_comment_init(&dc);
 }
@@ -191,7 +192,10 @@ void DaalaDecoder::close() {
     dctx = NULL;
   }
   ogg_sync_clear(&oy);
-  ogg_stream_clear(&os);
+  if (os) {
+    ogg_stream_clear(os);
+    os = NULL;
+  }
   daala_info_clear(&di);
   daala_comment_clear(&dc);
 }
